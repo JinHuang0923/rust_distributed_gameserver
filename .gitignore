@@ -1,0 +1,10 @@
+/target
+
+.DS_Store
+
+# rust
+.cargo/config.toml
+target
+Cargo.lock
+.env
+target

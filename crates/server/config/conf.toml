@@ -1,0 +1,26 @@
+[basic]
+tick_time = 0.02 # 服务器tick间隔 单位秒 要求是0.02
+heartbeat = 3000 # 心跳间隔 单位毫秒,心跳消失多久判定为掉线
+max_aoe_radius = 200000.0 # 最大aoe半径
+max_connection = 10000 #指定的最大连接数
+[app]
+name = "app"
+mode = "Cluster" #Single or Cluster
+[node]
+node_addr = "127.0.0.1" #server节点地址
+main_channel_port = 5555 #对外的主通信端口
+heartbeat_port = 5556 #对客户端的心跳端口(与注册中心的复用)
+pub_port = 5557 # master下同步给slave世界更新信息的端口 只有master需要指定这个端口
+node_type = "Master" #Single模式下也默认为Master
+
+# registry_heartbeat
+[registry]
+addr = "127.0.0.1"
+port = 9230
+# heartbeat_port = 5556
+
+[test.overload_test]
+enable = true
+max_user_count = 4000
+[test.another_test]
+enable = false

@@ -146,11 +146,12 @@ async fn _login(
     };
     (client_id.to_string(), user_id, socket)
 }
-pub async fn recv_msg(socket: &mut zeromq::DealerSocket, count: usize, opt: &str,start_time:tokio::time::Instant) {
+pub async fn recv_msg(socket: &mut zeromq::DealerSocket, count: usize, opt: &str,start_time:tokio::time::Instant) -> u128{
     for _ in 0..count {
         match socket.recv().await {
             Ok(msg) => {
-                println!("{} cost time: {:?}",opt, start_time.elapsed());
+                let cost_time = start_time.elapsed().as_millis();
+                println!("{} cost time: {} ms",opt,cost_time );
                 // println!("{} Received:  ", opt);
                 if opt == "query_full"{
                     //query响应太大了，不打印全部,打印个数吧
@@ -161,10 +162,13 @@ pub async fn recv_msg(socket: &mut zeromq::DealerSocket, count: usize, opt: &str
                     continue;
                 }
                 println!("msg:{:?}", msg);
+                return cost_time;
+                
             }
             Err(e) => println!("Error: {:?}", e),
         }
     }
+    return 0;
 }
 #[cfg(False)]
 mod query_test {
@@ -404,23 +408,23 @@ mod client_tests {
     }
 }
 #[cfg(test)]
-mod single_pressure_test {
+mod ressure_test {
     use common::{
         basic::{RectScope, Vector2, Velocity},
         message::Message,
     };
     use zeromq::SocketSend;
 
-    use crate::{connect_to_server, login, recv_msg};
+    use crate::{connect_to_server, login, recv_msg, login_distributed, connect_to_server_distributed};
     use tokio::time::{sleep, self};
 
     fn get_reqeust_count() -> u32 {
-        100
+        30
     }
     #[tokio::test]
     async fn test_login() {
         // let mut socket = super::connect_to_server(&client_id).await;
-        let (client_id, _, mut socket) = login().await;
+        let (client_id, _, mut socket) = login_distributed().await;
 
         let login_msg = serde_json::to_string(&super::Message::login(&client_id)).unwrap();
         let zmq_msg = super::full_dealer_msg(&login_msg).await;
@@ -432,7 +436,7 @@ mod single_pressure_test {
     }
     #[tokio::test]
     async fn test_logout() {
-        let (client_id, _, mut socket) = login().await;
+        let (client_id, _, mut socket) = login_distributed().await;
         //这里登录成功了,等待一下再注销
         sleep(std::time::Duration::from_secs(30)).await;
 
@@ -446,7 +450,7 @@ mod single_pressure_test {
         // let (client_id, _user_id, mut socket) = login().await;
         let client_id = uuid::Uuid::new_v4().to_string();
 
-        let mut socket = connect_to_server(&client_id).await;
+        let mut socket = connect_to_server_distributed(&client_id).await;
         //全图
         let scope: RectScope = RectScope {
             left_up: Vector2 {
@@ -459,29 +463,47 @@ mod single_pressure_test {
             },
         };
         let query_msg = Message::query(&client_id, scope).to_zmq_dealer_msg();
-
+        let mut cost_time_vec = Vec::new();
         for _ in 0..get_reqeust_count() {
             socket.send(query_msg.clone()).await.unwrap();
-            recv_msg(&mut socket, 1, "query_full",time::Instant::now()).await;
+            let cost_time = recv_msg(&mut socket, 1, "query_full",time::Instant::now()).await;
+            cost_time_vec.push(cost_time);
             sleep(std::time::Duration::from_secs_f32(0.4)).await;
         }
+        //打印平均响应时间
+        let mut sum = 0;
+        for cost_time in cost_time_vec.clone() {
+            sum += cost_time;
+        }
+        println!("query_full_world avg cost time:{}", sum / cost_time_vec.len() as u128);
     }
     #[tokio::test]
     async fn aoe() {
-        let (client_id, user_id, mut socket) = login().await;
+        let (client_id, user_id, mut socket) = login_distributed().await;
 
         let zmq_aoe_msg = Message::aoe(&client_id, user_id, 20.0, 100).to_zmq_dealer_msg();
+        let mut cost_time_vec = Vec::new();
 
         //连发100个请求
         for _ in 0..get_reqeust_count() {
             socket.send(zmq_aoe_msg.clone()).await.unwrap();
-            recv_msg(&mut socket, 1, "test_aoe",time::Instant::now()).await;
+            let cost_time = recv_msg(&mut socket, 1, "test_aoe",time::Instant::now()).await;
+            cost_time_vec.push(cost_time);
+
             sleep(std::time::Duration::from_secs_f32(0.4)).await;
         }
+        //打印平均响应时间
+        let mut sum = 0;
+        for cost_time in cost_time_vec.clone() {
+            sum += cost_time;
+        }
+        // println!("aoe avg cost time:{}", sum / cost_time_vec.len() as f32);
+        println!("aoe avg cost time:{} ms", sum / cost_time_vec.len()as u128);
+
     }
     #[tokio::test]
     async fn set_velocity() {
-        let (client_id, user_id, mut socket) = login().await;
+        let (client_id, user_id, mut socket) = login_distributed().await;
 
         let zmq_set_velocity_msg: zeromq::ZmqMessage = Message::set_velocity(
             &client_id,
@@ -493,10 +515,18 @@ mod single_pressure_test {
         )
         .to_zmq_dealer_msg();
         //连发100个请求
+        let mut cost_time_vec = Vec::new();
+
         for _ in 0..get_reqeust_count() {
             socket.send(zmq_set_velocity_msg.clone()).await.unwrap();
-            recv_msg(&mut socket, 1, "test_velocity",time::Instant::now()).await;
+            let cost_time = recv_msg(&mut socket, 1, "test_velocity",time::Instant::now()).await;
+            cost_time_vec.push(cost_time);
             sleep(std::time::Duration::from_secs_f32(0.4)).await;
         }
+        let mut sum = 0;
+        for cost_time in cost_time_vec.clone() {
+            sum += cost_time;
+        }
+        println!("set_velocity avg cost time:{} ms", sum / cost_time_vec.len() as u128);
     }
 }

@@ -5,7 +5,7 @@ max_aoe_radius = 20.0 # 最大aoe半径
 max_connection = 10000 #指定的最大连接数
 [app]
 name = "app"
-mode = "Single" #Single or Cluster
+mode = "Cluster" #Single or Cluster
 [node]
 node_addr = "127.0.0.1" #server节点地址
 main_channel_port = 5555 #对外的主通信端口

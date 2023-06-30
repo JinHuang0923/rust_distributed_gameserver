@@ -48,7 +48,7 @@ pub async fn get_load_banlance_connection(
     debug!("get_load_banlance_connection");
 
     let mut node_state_list = ctx.lock().await.node_state.clone();
-    let node_list = ctx.lock().await.node_list.clone();
+    let mut node_list = ctx.lock().await.node_list.clone();
     // < 1 无可用节点
     if node_list.is_empty() {
         debug!("no available server node");
@@ -64,6 +64,7 @@ pub async fn get_load_banlance_connection(
     //获取最小负载量的非master节点,先移除master节点 from 待选节点列表(大于1个节点,master节点必然存在,注册时已经保证了)
     let master_node_key = ctx.lock().await.master_node.clone().unwrap().get_key();
     node_state_list.remove(&master_node_key);
+    node_list.remove(&master_node_key);
 
     let node_info = get_min_load_node(node_state_list.clone(), node_list).await;
 

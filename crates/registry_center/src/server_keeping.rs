@@ -42,7 +42,7 @@ pub async fn heartbeat_monitor(context: Arc<Mutex<AppContext>>) {
             .iter()
             .for_each(|(client_id, node_state)| {
                 let timestamp = chrono::Local::now().timestamp_millis();
-                if timestamp - node_state.last_heartbeat_time > 1500 {
+                if timestamp - node_state.last_heartbeat_time > 5000 {
                     debug!(
                         "node {} is offline,currenct_timestamp: {},last heartbeat time:{}",
                         client_id, timestamp, node_state.last_heartbeat_time
@@ -75,7 +75,7 @@ pub async fn heartbeat_monitor(context: Arc<Mutex<AppContext>>) {
             elect_master(&mut context).await;
         }
 
-        tokio::time::sleep(Duration::from_secs_f32(0.5)).await;
+        tokio::time::sleep(Duration::from_secs_f32(1.0)).await;
     }
 }
 pub async fn elect_master(context: &mut MutexGuard<'_, AppContext>) {

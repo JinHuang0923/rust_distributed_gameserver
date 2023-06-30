@@ -1,19 +1,19 @@
-use std::{error::Error, future::Future, sync::Arc};
+use std::{future::Future, sync::Arc};
 
 use common::{
     basic::{RectScope, User, Velocity},
     message::{peer_identity_to_string, Message, Operation},
 };
 use idgenerator::IdInstance;
-use serde_json::error;
+
 use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
+    mpsc::{Receiver, Sender},
     Mutex, MutexGuard,
 };
 use tracing::{debug, error};
-use tracing_subscriber::field::debug;
+
 use zeromq::{util::PeerIdentity, Socket, SocketRecv, SocketSend, ZmqMessage};
-type UserId = i64;
+// type UserId = i64;
 use crate::{config::Mode, server_context::ServerContext, world::World};
 pub enum UserType {
     NoVelocity,

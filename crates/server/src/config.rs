@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use common::node::{NodeType, NodeInfo};
+use common::node::{NodeInfo};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct App {

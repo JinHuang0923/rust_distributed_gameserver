@@ -5,4 +5,5 @@ count=$1
 for((i=1;i<=$count;i++));
 do
     cargo test &
+    sleep 0.1
 done

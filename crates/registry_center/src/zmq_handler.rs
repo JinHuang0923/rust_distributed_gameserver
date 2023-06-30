@@ -109,7 +109,7 @@ pub async fn handle_msg_task(
                     if let Some(node_state) = context.node_state.get_mut(&msg.client_id) {
                         node_state.last_heartbeat_time = chrono::Local::now().timestamp_millis();
                         node_state.state_info = state_info;
-                        
+
                         // 不回心跳消息,不然太多了server不好处理
                         // debug!("node report {}",msg.client_id);
                         // let zmq_msg = Message::resp("report success").to_router_msg(peer_id);
@@ -130,6 +130,16 @@ pub async fn handle_msg_task(
                     error!("非法report信息")
                 }
             }
+        }
+        Operation::ConvertToMasterResp => {
+            //收到转换master的回复,更新新的master节点信息,以及node_list中的信息
+            let new_master_node_info = serde_json::from_str::<NodeInfo>(&msg.content.unwrap())
+                .expect("convert to master resp content error");
+            let mut context = context.lock().await;
+            context.master_node = Some(new_master_node_info.clone());
+            context
+                .node_list
+                .insert(new_master_node_info.get_key(), new_master_node_info);
         }
         _ => {
             error!("unknown operation");

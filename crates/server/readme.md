@@ -68,8 +68,10 @@
 ## 优化
 - [ ] 哪些地方还可以使用异步task提升性能
 - [x] server的handle_msg改为异步task 同时处理多个客户端消息
+- [ ] query请求改为不需要登录也可以直接处理请求,这样master节点即使挂了,query请求仍然不受影响
 ## bug
-- [ ] 登录了但是query的数量没有增加(add_user有问题,不然就是没来得及同步,query晚一点试试)
+- [x] 登录了但是query的数量没有增加(add_user有问题,不然就是没来得及同步,query晚一点试试)
+- [ ] connection的数量不对,连接上的客户端即使不登录(仅query)也应该算一个连接,client_map仅仅包含了登录的客户端
 ## 可用测试
 - [x] Single模式下可用
 - [x] Cluster模式,作为单Master节点可用

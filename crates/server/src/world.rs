@@ -39,6 +39,7 @@ pub struct World {
     pub area_len: u32, //划分的地图区域矩形边长 200000;
     pub max_aoe_radius: f32,
     pub state_info: StateInfo,
+    pub connection_count: u32, //client_map的数量没法记录仅查询的客户段,仅仅记录登录过的用户,这里的count由心跳线程更新
 }
 // map是world中的一块矩形区域,含有一个单独的场景存储当前的实体
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,6 +211,7 @@ impl World {
                 avg_update_delay: 0.0,
                 user_count: 0,
             },
+            connection_count: 0,
         }
     }
     // 世界时钟刷新
@@ -282,7 +284,7 @@ impl World {
     }
     //更新state_info,不是用户人数而是连接数(clientmap)
     pub fn update_state_info(&mut self) {
-        self.state_info.current_connection = self.client_map.len() as u32;
+        self.state_info.current_connection = self.connection_count;
         self.state_info.load_factor =
             self.state_info.current_connection as f32 / self.state_info.max_connection as f32;
         self.state_info.user_count = self.user_count();
@@ -331,7 +333,7 @@ impl World {
         let user_id = client_map.get(client_id);
         //删除client_map中的client_id
         self.client_map.remove(client_id);
-        debug!("client_map:{:?}", self.client_map);
+        // debug!("client_map:{:?}", self.client_map);
 
         match user_id {
             Some(user_id) => {

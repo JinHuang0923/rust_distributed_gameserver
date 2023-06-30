@@ -15,7 +15,7 @@ use tokio::{
     time,
 };
 use tracing::{debug, error, info};
-use tracing_subscriber::field::debug;
+use tracing_subscriber::{field::debug, fmt::format::debug_fn};
 use zeromq::{
     util::PeerIdentity, DealerSocket, PubSocket, Socket, SocketOptions, SocketRecv, SocketSend,
     SubSocket, ZmqMessage,
@@ -95,7 +95,14 @@ pub async fn try_report_load_factor_task(
     state_info: StateInfo,
 ) {
     let report_zmq_msg = Message::state_report(&client_id, state_info).to_zmq_dealer_msg();
-    to_registry_center_sender.send(report_zmq_msg).await.unwrap();
+    match to_registry_center_sender.send(report_zmq_msg).await {
+        Ok(_) => {}
+        Err(_) => {
+            // forward_server_to_registry_center_thread 那边挂了,注册中心也应该挂了,程序退出
+            error!("to_registry_center_sender error registry server is down");
+            std::process::exit(1);
+        }
+    }
 }
 /// 这个线程不会停止或是重启,以cluster模式启动都会启动这个线程
 /// 集群模式下永不停止的线程
@@ -149,15 +156,52 @@ pub async fn handle_resp_from_registry_center_task(
         }
         Operation::ConvertToMaster => {
             // todo : implement convert to master
-            todo!()
+            // todo!()
+            debug!(
+                "receive 'ConvertToMaster' command from registry center:{:?}",
+                msg
+            );
+            convert_self_to_master(server_ctx.clone()).await;
         }
         Operation::ChangeMaster => {
             // todo : implement change master
-            todo!()
+            // todo!()
+            debug!(
+                "receive 'ChangeMaster' command from registry center:{:?}",
+                msg
+            );
+            debug!("todo : implement ChangeMaster");
+            let new_master_node_info =
+                serde_json::from_str::<NodeInfo>(&msg.content.unwrap()).unwrap();
+            debug!("new master node info: {:?}", new_master_node_info);
         }
         // 其他不用处理,包括心跳的返回消息
         _ => {}
     }
+}
+pub async fn convert_self_to_master(
+    server_ctx_counter: Arc<Mutex<ServerContext>>,
+    // to_registry_center_sender: Sender<ZmqMessage>,
+) {
+    let mut server_ctx = server_ctx_counter.lock().await;
+    // 1.改变自己的node_type.以及节点信息的node_type
+    server_ctx.self_node_info.node_type = NodeType::Master;
+    server_ctx.node_type = NodeType::Master;
+
+    let to_registry_center_sender = server_ctx.to_registry_center_sender.clone();
+    // 2. 关闭slave与原先master的连接,可能可以通过send_error自动关闭,最好还是把那个线程操作权拿出来共享,这里停掉那个线程
+
+    // 3. todo: 开启pub world_update的线程以便其余slave订阅更新 看看do_master这个方法
+    // pub_world_sync_thread()
+
+    debug!("todo : implement convert to master");
+    to_registry_center_sender
+        .send(
+            Message::convert_to_master_resp(server_ctx.self_node_info.clone()).to_zmq_dealer_msg(),
+        )
+        .await
+        .unwrap();
+    debug!("convert to master success msg have send");
 }
 
 /// slave节点从master那里同步世界状态(接收pub的消息),收到消息就同步world user
@@ -312,14 +356,15 @@ pub async fn do_in_cluster_mode(
 
     let client_id = config.node.get_key();
 
-    let (to_registry_center_sender, to_registry_center_receiver) = tokio::sync::mpsc::channel::<ZmqMessage>(100);
+    let (to_registry_center_sender, to_registry_center_receiver) =
+        tokio::sync::mpsc::channel::<ZmqMessage>(100);
     server_ctx.to_registry_center_sender = to_registry_center_sender;
 
     // 注册完毕后开启forward线程
     tokio::spawn(forward_server_to_registry_center_thread(
         server_ctx_counter.clone(),
         to_registry_center_socket,
-        to_registry_center_receiver
+        to_registry_center_receiver,
     ));
 
     client_id
@@ -375,7 +420,15 @@ pub async fn forward_master_slave_client_thread(
                     Some(msg_content) => {
                         debug!("Received msg from to_master_sender : {:?},redirect to master", msg_content);
 
-                        slave_to_master_socket.send(msg_content).await.unwrap();
+                        match slave_to_master_socket.send(msg_content).await{
+                            Ok(_) => {
+                                // debug!("send to master success");
+                            },
+                            Err(e) => {
+                                error!("slave send to master error: {},may master is down", e);
+                                //todo: 这里是不是就已经可以肯定master挂掉了呢,是否可以在这里结束这个线程
+                            }
+                        }
                     },
                     None => {
                         // the channel has been closed and there are no more messages

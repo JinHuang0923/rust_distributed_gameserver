@@ -7,7 +7,7 @@ use crate::{config::{GameServerConf, Mode}, distribute::WorldSyncDTO};
 //Server运行时上下文,在运行时可能会发生变化
 pub struct ServerContext {
     pub mode: Mode, //运行模式,单机模式或者集群模式,默认为单机模式,读取完config后可能会变成集群模式
-    pub comunicacion: NodeInfo,
+    pub self_node_info: NodeInfo, //自身的节点信息
     pub node_type: NodeType,
     pub master_node: NodeInfo, //master节点的地址以及端口信息
 
@@ -29,7 +29,7 @@ impl ServerContext {
         let (world_sync_sender, _) = tokio::sync::mpsc::channel::<WorldSyncDTO>(100);
         let (to_registry_center_sender, _) = tokio::sync::mpsc::channel::<ZmqMessage>(100);
         ServerContext {
-            comunicacion: NodeInfo::default(),
+            self_node_info: NodeInfo::default(),
             node_type: NodeType::Master,
             master_node: NodeInfo::default(),
             world_sync_sender,
@@ -46,7 +46,7 @@ impl ServerContext {
         let (to_registry_center_sender, _) = tokio::sync::mpsc::channel::<ZmqMessage>(100);
 
         ServerContext {
-            comunicacion: conf.node.clone(),
+            self_node_info: conf.node.clone(),
             node_type: conf.node.node_type.clone(),
             master_node: conf.node.clone(),
             world_sync_sender,

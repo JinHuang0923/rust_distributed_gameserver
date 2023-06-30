@@ -63,19 +63,19 @@ pub async fn run(conf_path: String) -> (Arc<Mutex<World>>, JoinHandle<()>) {
     IdInstance::init(options).unwrap();
 
     let mut world = World::init(config.clone());
-    //世界初始化
-    //创建两个随机用户
-    let first_user = User::random(IdInstance::next_id());
-    let second_user = User::random(IdInstance::next_id());
+    // //世界初始化
+    // //创建两个随机用户
+    // let first_user = User::random(IdInstance::next_id());
+    // let second_user = User::random(IdInstance::next_id());
 
-    //打印下用户信息
-    // println!("first_user: {:?}", first_user);
-    //print maps
-    // world.print_map();
+    // //打印下用户信息
+    // // println!("first_user: {:?}", first_user);
+    // //print maps
+    // // world.print_map();
 
-    //把用户加入到世界中
-    world.add_user(first_user);
-    world.add_user(second_user);
+    // //把用户加入到世界中
+    // world.add_user(first_user);
+    // world.add_user(second_user);
     let tick_time = world.tick_time;
     //-------------------------
     debug!("world init success");
@@ -175,10 +175,10 @@ pub async fn sleep_by_world_update_cost_time(tick_time: f32, start_time: time::I
         sleep(std::time::Duration::from_secs_f32(time_difference)).await;
     } else {
         //单次达到负载上限,打印信息,不sleep
-        debug!(
-            "single world overload,time_difference : {:?}",
-            time_difference
-        );
+        // debug!(
+        //     "single world overload,time_difference : {:?}",
+        //     time_difference
+        // );
     }
     //世界延迟cost_time转为毫秒返回
     cost_time.as_millis() as f32
@@ -268,7 +268,8 @@ async fn world_update_thread(
             let mut latest_state_info =
                 world_update_only_master_or_single(&world_update_couter).await;
             latest_state_info.avg_update_delay = average_world_update_cost_time;
-            // debug!("state_info: {:?}", latest_state_info.clone());
+            // 单机模式打印世界状态信息
+            debug!("state_info: {:?}", latest_state_info.clone());
         };
 
         let cost_time = sleep_by_world_update_cost_time(timer_clock, start_time).await;

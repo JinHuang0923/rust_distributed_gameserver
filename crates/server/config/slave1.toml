@@ -1,7 +1,7 @@
 [basic]
 tick_time = 0.02 # 服务器tick间隔 单位秒 同时也是控制server到注册中心的心跳时间
 heartbeat = 3000 # 心跳间隔 单位毫秒,心跳消失多久判定为掉线
-max_aoe_radius = 200000.0 # 最大aoe半径
+max_aoe_radius = 20.0 # 最大aoe半径
 max_connection = 10000 #指定的最大连接数
 [app]
 name = "app"

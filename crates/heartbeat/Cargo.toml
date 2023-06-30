@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-zeromq = {version="0.3.3",features=["tokio-runtime","tcp-transport"]}
+zeromq = {path="../zmq.rs",features=["tokio-runtime","tcp-transport"]}
 tokio = { version = "1.28.2", features = ["rt", "net","sync"] }
 chrono = { version = "0.4.19", features = ["serde"] }
 serde = { version = "1.0.164", features = ["derive"] }

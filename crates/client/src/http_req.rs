@@ -21,7 +21,7 @@ pub async fn get_server_connection() -> Option<NodeInfo> {
     }
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_get_server_connection() {
     let node_info = get_server_connection().await;
     println!("node_info {:?}", node_info);

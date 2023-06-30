@@ -2,8 +2,6 @@ use std::{collections::HashMap, env::ArgsOs, future::Future, sync::Arc, thread};
 
 use common::message::Message;
 use tokio::sync::Mutex;
-use tracing::debug;
-use zeromq::{Socket, SocketRecv, SocketSend};
 
 use crate::{server_context::ServerContext, world::World};
 
@@ -16,7 +14,7 @@ pub async fn heartbeat_monitor(
     println!("Start server heartbeat monitor");
     loop {
         //每过指定时间检查一次心跳,找出是否有客户端连接断了
-        tokio::time::sleep(tokio::time::Duration::from_secs_f32(5.0)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs_f32(3.0)).await;
         let mut last_time = monitor_heartbeat_last_time.lock().await;
         let mut del_list = Vec::new();
         for (client_id, last_heartbeat_time) in last_time.iter() {
@@ -35,9 +33,12 @@ pub async fn heartbeat_monitor(
         for client_id in del_list.iter() {
             last_time.remove(client_id);
         }
+        //更新一下连接数
+        heartbeat_world_couter.lock().await.connection_count = last_time.len() as u32;
     }
 }
 /// 心跳相关(与客户端)
+#[allow(clippy::single_match)]
 pub async fn remove_offline_client(
     client_id: &str,
     heartbeat_world_couter: &Arc<Mutex<World>>,
@@ -67,7 +68,7 @@ pub async fn remove_offline_client(
 
                     //build a del_user msg,send to master
                     let del_user_msg =
-                        Message::del_user(&server_ctx.comunicacion.get_key(), *user_id)
+                        Message::del_user(&server_ctx.self_node_info.get_key(), *user_id)
                             .to_zmq_dealer_msg();
                     server_ctx
                         .to_master_sender
@@ -76,7 +77,7 @@ pub async fn remove_offline_client(
                         .unwrap();
                 }
                 None => {
-                    debug!("can't find user_id by client_id:{},无需移除", client_id);
+                    // debug!("can't find user_id by client_id:{},无需移除", client_id);
                 }
             }
             //2. 通知master节点移除这个用户

@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use zeromq::{util::PeerIdentity, ZmqMessage};
 
 use crate::{
@@ -29,6 +28,8 @@ pub enum Operation {
     // for distribute
     Register,
     Report, //report state
+    // only slave node
+    ConvertToMasterResp, //slave node convert to master node response,will send this msg to registry center when slave finishen convert to master.
     //----only master node-----
     AddUser, //与client无关,直接由server之间转发使用,添加用户到master世界
     DelUser, //与client无关,直接由server之间转发使用,删除用户从master世界
@@ -265,6 +266,16 @@ impl Message {
             user_id: None,
             operation: Operation::RegisterResp,
             content: Some(serde_json::to_string(&resp).unwrap()),
+            client_peer_id: None,
+        }
+    }
+    //只有转换成功才会发送消息
+    pub fn convert_to_master_resp(node_info: NodeInfo) -> Self {
+        Message {
+            client_id: node_info.get_key(),
+            user_id: None,
+            operation: Operation::ConvertToMasterResp,
+            content: Some(serde_json::to_string(&node_info).unwrap()),
             client_peer_id: None,
         }
     }

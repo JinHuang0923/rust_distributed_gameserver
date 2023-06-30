@@ -91,6 +91,7 @@ pub async fn return_no_available_server_node() -> Resp<NodeInfo> {
         .code(500)
         .message("no available server node")
 }
+#[allow(clippy::comparison_chain)]
 pub async fn get_min_load_node(
     node_state_list: HashMap<String, NodeState>,
     node_list: HashMap<String, NodeInfo>,
@@ -98,24 +99,36 @@ pub async fn get_min_load_node(
     if node_list.is_empty() {
         return None;
     }
-    let (mut min_load_server_addr, mut min_state) = (None, None);
+    //负载均衡调用这个传进来的list已经去除了master,所以先获取第一个作为默认的
+    // let (mut node_key, mut min_state) = (node_l, None);
+    let mut min_load_node_key = node_list.keys().next().unwrap().clone();
+    let mut min_load_state_info = node_state_list.get(&min_load_node_key).unwrap().clone();
+    debug!("first min_load_state_info {:?}", min_load_state_info);
+    dbg!(node_state_list.clone());
 
     //获取负载量最小的节点
-    for (addr, state) in node_state_list {
-        match min_load_server_addr {
-            Some(_) => {}
-            None => {
-                min_load_server_addr = Some(addr);
-                min_state = Some(state);
-                continue;
+    for (node_key, state) in node_state_list {
+        if state.state_info.load_factor < min_load_state_info.state_info.load_factor {
+            min_load_node_key = node_key;
+            min_load_state_info = state;
+        } else if state.state_info.load_factor == min_load_state_info.state_info.load_factor {
+            //负载率相同,比较最大连接数
+            if state.state_info.max_connection > min_load_state_info.state_info.max_connection {
+                min_load_node_key = node_key;
+                min_load_state_info = state;
+            } else if state.state_info.max_connection
+                == min_load_state_info.state_info.max_connection
+            {
+                //最大连接数也相同,说明这是两个相同配置的节点,两个都一样,但是为了防止精度误差(负载率是小数,可能有很小的误差),比较一下两个节点有没有某个连接数更少
+                if state.state_info.current_connection
+                    < min_load_state_info.state_info.current_connection
+                {
+                    min_load_node_key = node_key;
+                    min_load_state_info = state;
+                }
             }
         }
-        if state.state_info.load_factor < min_state.clone().unwrap().state_info.load_factor {
-            min_load_server_addr = Some(addr);
-            min_state = Some(state);
-        }
     }
-    let key = min_load_server_addr.unwrap_or("".to_string());
     //获取到最小负载量的节点信息
-    node_list.get(&key).cloned()
+    node_list.get(&min_load_node_key).cloned()
 }

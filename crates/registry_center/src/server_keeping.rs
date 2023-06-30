@@ -44,13 +44,18 @@ pub async fn heartbeat_monitor(context: Arc<Mutex<AppContext>>) {
                 let timestamp = chrono::Local::now().timestamp_millis();
                 if timestamp - node_state.last_heartbeat_time > 1500 {
                     debug!(
-                        "client {} is offline,currenct_timestamp: {},last heartbeat time:{}",
+                        "node {} is offline,currenct_timestamp: {},last heartbeat time:{}",
                         client_id, timestamp, node_state.last_heartbeat_time
                     );
                     //do something
                     del_list.push(client_id.clone());
-                    if context.node_list.get(client_id).unwrap().node_type == NodeType::Master {
-                        need_elect_master = true;
+                    // if context.node_list.get(client_id).unwrap().node_type == NodeType::Master {
+                    //     need_elect_master = true;
+                    // }
+                    if let Some(master_node) = &context.master_node {
+                        if master_node.get_key() == *client_id {
+                            need_elect_master = true;
+                        }
                     }
                 }
             });
@@ -84,9 +89,9 @@ pub async fn elect_master(context: &mut MutexGuard<'_, AppContext>) {
 
     match new_master_node_info {
         Some(new_master_node) => {
-            //1.更新master_node
-            context.master_node = Some(new_master_node.clone());
-            debug!("new master node is {:?}", new_master_node);
+            //1.更新master_node todo:这里不更新master_node,要确保收到转换的节点回复的change_master响应成功再做修改,否则会影响心跳,重复选举
+            // context.master_node = Some(new_master_node.clone());
+            debug!("elect new master node is {:?},wait node finish it...", new_master_node);
             //2.向master_node发送主从转换指令
             let master_client_id = new_master_node.get_key();
             // 获取对应的peer_id

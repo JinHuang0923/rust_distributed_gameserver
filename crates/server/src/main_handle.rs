@@ -53,14 +53,21 @@ pub async fn handle_msg_task(
     server_ctx: Arc<Mutex<ServerContext>>,
     world: Arc<Mutex<World>>,
     // to_client_sender: &Sender<ZmqMessage>,
-    mut msg: Message,
-    peer_id: PeerIdentity, //todo: 这里的peer_id是客户端直连/slave到master 的peer_id,如果是master转发的话,peer_id要从消息中获取重新构建msg
-                           // to_master_sender: &Sender<ZmqMessage>,
+    zmq_msg: ZmqMessage,
+    // to_master_sender: &Sender<ZmqMessage>,
 ) {
+    debug!("main channel receive message:{:?}", zmq_msg);
+    //todo: 这里的peer_id是客户端直连/slave到master 的peer_id,如果是master转发的话,peer_id要从消息中获取重新构建msg
+    let peer_id: PeerIdentity = zmq_msg.get(0).unwrap().clone().try_into().unwrap();
+    // let receive: String = message.try_into().unwrap();
+    //第三条是正文
+    let receive = String::from_utf8(zmq_msg.into_vecdeque()[2].to_vec()).unwrap();
+    let mut msg = serde_json::from_str::<common::message::Message>(&receive).unwrap();
+
     let ctx = server_ctx.lock().await;
     let is_cluster = ctx.mode == Mode::Cluster;
     let is_slave = ctx.node_type == common::node::NodeType::Slave;
-    let slave_client_id = ctx.comunicacion.get_key();
+    let slave_client_id = ctx.self_node_info.get_key();
     let to_client_sender = &ctx.to_client_sender;
     let to_master_sender = &ctx.to_master_sender;
     let peer_id_str = peer_identity_to_string(peer_id.clone());
@@ -98,7 +105,7 @@ pub async fn handle_msg_task(
                 // slave处理login没有响应,已经转为了add_user的消息发送给master了,master那边会有响应,到时候会自动转发给客户端
                 //slave handle opration_login: convert to adduser msg,send to master_node
                 // let ctx = server_ctx.lock().await;
-                let add_user_msg = Message::add_user(&ctx.comunicacion.get_key(), user)
+                let add_user_msg = Message::add_user(&ctx.self_node_info.get_key(), user)
                     .set_peer_id(&peer_id_str)
                     .to_zmq_dealer_msg();
                 //发送给master
@@ -141,7 +148,7 @@ pub async fn handle_msg_task(
                 //todo: 删除后其实已经不计入connection了,但是需要把心跳timemap中删除,不然会一直发送心跳
 
                 //build a del_user msg,send to master
-                let del_user_msg = Message::del_user(&ctx.comunicacion.get_key(), user_id)
+                let del_user_msg = Message::del_user(&ctx.self_node_info.get_key(), user_id)
                     .set_peer_id(&peer_id_str)
                     .to_zmq_dealer_msg();
                 to_master_sender.send(del_user_msg).await.unwrap();
@@ -236,12 +243,12 @@ pub async fn handle_msg_task(
             //todo: 这里给用户返回的数据量很多，后续要转为protobuf格式的二进制数据，暂时先用json实现
             //1. 获取参数
             //caculate response time
-            let start = tokio::time::Instant::now();
+            // let start = tokio::time::Instant::now();
             let scope = serde_json::from_str::<RectScope>(&msg.content.unwrap()).unwrap();
             let users = world.lock().await.query(scope);
             // 释放锁 todo:是否会自动释放,还是到作用域结束时才释放
             //人数
-            debug!("query user count:{}", users.len());
+            // debug!("query user count:{}", users.len());
             to_client_sender
                 .send(
                     Message::query_resp(users)
@@ -250,7 +257,7 @@ pub async fn handle_msg_task(
                 )
                 .await
                 .unwrap();
-            debug!("query response time:{:?}", start.elapsed());
+            // debug!("query response time:{:?}", start.elapsed());
         }
 
         _ => {
@@ -386,21 +393,17 @@ pub async fn main_channel_thread(
     //读线程
     loop {
         tokio::select! {
-            message = socket.recv() =>{
+            message_or_error = socket.recv() =>{
                 //先获取peer_id
                   //先拆分出peer_id
-                  let message = message.unwrap();
-                  debug!("main channel receive message:{:?}",message);
+                  if let Ok(message) = message_or_error{
+                  // let repl = format!("{} reply", &receive_msg.operation);
+                  // todo:handle_msg改为线程task异步执行,是否可以提升响应速度?
+                  // handle_msg_task(&server_ctx,&world_counter, receive_msg,peer_id).await;
+                  tokio::spawn(handle_msg_task(server_ctx.clone(),world_counter.clone(), message));
+                  }
 
-                  let peer_id = message.get(0).unwrap().clone().try_into().unwrap();
-                  // let receive: String = message.try_into().unwrap();
-                  //第三条是正文
-                  let receive = String::from_utf8(message.into_vecdeque()[2].to_vec()).unwrap();
-                  let receive_msg = serde_json::from_str::<common::message::Message>(&receive).unwrap();
-                // let repl = format!("{} reply", &receive_msg.operation);
-                // todo:handle_msg改为线程task异步执行,是否可以提升响应速度?
-                // handle_msg_task(&server_ctx,&world_counter, receive_msg,peer_id).await;
-                tokio::spawn(handle_msg_task(server_ctx.clone(),world_counter.clone(), receive_msg,peer_id));
+
                 // socket.send(repl.into()).await.unwrap();
                 //todo: 如果是集群模式并且是slave,使用另一种handle_msg的方法(转发给master)
 
@@ -408,7 +411,7 @@ pub async fn main_channel_thread(
             redirect_msg = to_client_receiver.recv() =>{
                 //这里可能是master给slave响应,也可能是slave给client响应
                 let redirect_msg = redirect_msg.unwrap();
-                debug!("to_client_sender msg:{:?}",redirect_msg);
+                // debug!("to_client_sender msg:{:?}",redirect_msg);
                 // 这里的msg已经有了peer_id,在slave节点上,这个peer_id应该是client的id,在master节点上,这个peer_id应该是slave的peer_id
                 match socket.send(redirect_msg).await{
                     Ok(_)=>{},
